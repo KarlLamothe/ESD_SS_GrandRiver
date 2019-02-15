@@ -1,11 +1,10 @@
 ############################################################################
 ############################################################################
-#Community and species co-occurrence analysis in the Grand River, Ontario###
+#Species co-occurrence analysis in the Grand River, Ontario#################
 #Code prepared by Dr. Karl A. Lamothe, Fisheries and Oceans Canada, GLLFAS## 
 #karl.lamothe@dfo-mpo.gc.ca#################################################
 ############################################################################
 ############################################################################
-rm(list=ls())
 library(pacman)
 p_load(psych)
 p_load(vegan)
@@ -15,89 +14,6 @@ p_load(RCurl)
 
 #Set working directory
 setwd("...")
-
-#Load in data sets
-#community presence absence data
-#There are 150 sites, as opposed to 151, because at 1 site there were no 
-#fish captured
-Comm.data <- read.csv("Fish.sites.comm.PA_Lamothe.csv",header=T) 
-head(Comm.data)
-colSums(Comm.data[3:ncol(Comm.data)])
-
-#habitat covariates
-site.habitat<-read.csv("Covariates_Comm_Analysis_Lamothe.csv",
-                         header=T)
-head(site.habitat)
-
-############################################################################
-############################################################################
-#Multivariate analysis
-############################################################################
-############################################################################
-#Gather habitat variables to work with
-habitat<-as.data.frame(
-  cbind(Mean.Substrate=site.habitat$Mean.substrate..mm.,
-        Sand.FineG= site.habitat$Sand.Finegravel..proportion.,
-        Turbidity = site.habitat$Turbidity..cm.,
-        Velocity = site.habitat$Flow.06D..m.s.,
-        Depth = site.habitat$Mean.depth..cm.))
-
-#Perform correlation analysis
-x<-corr.test(habitat, method="pearson")
-y<-corr.test(habitat, method="spearman")
-
-#Look at output
-round(x$r,2) #corr values
-round(x$p,2) #p values
-round(y$r,2) #corr values
-round(y$p,2) #p values
-
-#plot pairwise relationship between habitat variables
-pairs(habitat,pch=20) 
-
-#Scale and center the variables
-habitat.scaled.1<-data.frame(scale(habitat[,c(1,3,5)],scale=T,center=T))
-habitat.scaled<-cbind(habitat.scaled.1,habitat$Velocity, habitat$Sand.FineG)
-colnames(habitat.scaled)<-c("Mean.Sub","Turbi","Depth","Flow","sfg")
-head(habitat.scaled)
-
-#PCA
-#hellinger transformation
-site.sp.trans<-decostand(Comm.data[3:ncol(Comm.data)], 'hellinger') 
-PCA.Species<-rda(site.sp.trans, scale = F) #performs PCA
-summary(PCA.Species)
-
-#fuction to assess significance of the principal components.
-sign.pc<-function(x,R=9999,s=10, cor=T,...){
-  pc.out<-princomp(x,cor=cor,...)  # run PCA
-  # the proportion of variance of each PC
-  pve=(pc.out$sdev^2/sum(pc.out$sdev^2))[1:s]  
-  # a matrix with R rows and s columns
-  pve.perm<-matrix(NA,ncol=s,nrow=R)  
-  for(i in 1:R){
-    x.perm<-apply(x,2,sample)# permutation each column
-    pc.perm.out<-princomp(x.perm,cor=cor,...)# run PCA
-    # the proportion of variance of each PC.perm
-    pve.perm[i,]=(pc.perm.out$sdev^2/sum(pc.perm.out$sdev^2))[1:s] 
-  }
-  pval<-apply(t(pve.perm)>pve,1,sum)/R # calcalute the p-values
-  return(list(pve=pve,pval=pval))
-}
-
-# apply the function
-sign.pc(site.sp.trans,cor=F)
-
-#envfit
-ef<-envfit(PCA.Species, habitat.scaled, na.rm=T, permutations=9999, 
-           choices=c(1:3))
-ef
-
-#plot
-biplot(PCA.Species, scaling=-1, pch=20, display = c("species"), col="black")
-plot(ef, p.max=0.05, choices=c(1,2), col = "red")
-biplot(PCA.Species, scaling=-1, pch=20, display = c("species"), 
-       choices = c(2:3), col="black",xlim=c(-1,1))
-plot(ef, p.max=0.05, choices=c(2,3), col="red", xlim=c(-1,1))
 
 #########################################################################
 #########################################################################
@@ -318,13 +234,13 @@ sd(ma.psiA$est*ma.psiBA$est+(1-ma.psiA$est)*ma.psiBa$est)
 ############################################################################
 #Personal ggplot theme
 theme_me <- theme_bw() +
-  theme(axis.title = element_text(size = 11, family = "sans", face = "bold"),
+  theme(axis.title = element_text(size = 11, family = "sans"),
         axis.text.x = element_text(size = 10, family = "sans", colour = "black"),
         axis.text.y = element_text(size = 10, family = "sans", hjust = 0.6,
                                    colour = "black"),
         legend.title = element_text(size = 10, family = "sans"),
         legend.text = element_text(size = 8, family = "sans"),
-        strip.text = element_text(size = 11, family = "sans", face = "bold"))
+        strip.text = element_text(size = 11, family = "sans"))
 ############################################################################
 ############################################################################
 ma.psiA<-modAvg(results, param = "psiA",index=1)
@@ -359,14 +275,15 @@ wxyz<-cbind(wxyz,Sp)
 head(wxyz)
 
 sfg.gg<-ggplot()+
-  geom_line(data=wxyz, aes(x=Sfg.non,y=Occupancy,color=factor(Sp)),lwd=1)+
+  geom_line(data=wxyz, aes(x=Sfg.non,y=Occupancy,color=factor(Sp),lty=factor(Sp)),lwd=1)+
   ylim(0,1)+
   ylab("Probability of occupancy")+
   xlab("Proportion of sand and fine gravel")+
-  scale_color_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"),
+  scale_color_manual(values=c("#666666", "#000000", "#666666", "#000000"),
                      name="",
                      breaks=c("psiA", "psiBa","psiBA","psiB"),
                      labels=c("ESD","SS | ESD = 0","SS | ESD = 1", "SS"))+
+  scale_linetype_manual(values=c("solid","solid","dashed","dashed"))+
   theme_me+
   theme(legend.position="none")+
   annotate("text",x=0,y=1,label="A",size=4)
@@ -395,16 +312,17 @@ wxyz<-cbind(wxyz,Sp)
 head(wxyz)
 
 turbidgg<-ggplot()+
-  geom_line(data=wxyz, aes(x=Turbidity.non,y=Occupancy,color=factor(Sp)),lwd=1)+
+  geom_line(data=wxyz, aes(x=Turbidity.non,y=Occupancy,color=factor(Sp),lty=factor(Sp)),lwd=1)+
   ylim(0,1)+
   ylab("Probability of occupancy")+
   xlab("Water clarity (cm)")+
-  scale_color_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"),
+  scale_color_manual(values=c("#666666", "#000000", "#666666", "#000000"),
                      name="",
                      breaks=c("psiA", "psiBa","psiBA","psiB"),
                      labels=c("ESD","SS | ESD = 0","SS | ESD = 1", "SS"))+
+  scale_linetype_manual(values=c("solid","solid","dashed","dashed"))+
   theme_me+
-  theme(legend.position=c(.32,.85),
+  theme(legend.position="none",
         legend.text = element_text(size=12),
         legend.background=element_blank())+
   annotate("text",x=22,y=1,label="B",size=4)
@@ -433,13 +351,15 @@ wxyz<-cbind(wxyz,Sp)
 head(wxyz)
 
 depthgg<-ggplot()+
-  geom_line(data=wxyz, aes(x=Depth.non,y=Occupancy,color=factor(Sp)),lwd=1)+
+  geom_line(data=wxyz, aes(x=Depth.non,y=Occupancy,color=factor(Sp),lty=factor(Sp)),lwd=1)+
   ylim(0,1)+
   ylab("Probability of occupancy")+
   xlab("Depth (cm)")+
-  scale_color_manual(values=c("#000000", "#E69F00", "#56B4E9", "#009E73"),
-                     name="", breaks=c("psiA", "psiBa","psiBA","psiB"),
+  scale_color_manual(values=c("#666666", "#000000", "#666666", "#000000"),
+                     name="",
+                     breaks=c("psiA", "psiBa","psiBA","psiB"),
                      labels=c("ESD","SS | ESD = 0","SS | ESD = 1", "SS"))+
+  scale_linetype_manual(values=c("solid","solid","dashed","dashed"))+
   theme_me+
   theme(legend.position="none")+
   annotate("text",x=20,y=1,label="C",size=4)
@@ -468,12 +388,12 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 }
 ############################################################################
 ############################################################################
-#Figure 3
+#Figure 2
 multiplot(sfg.gg,turbidgg,depthgg,cols=3)
 
 ############################################################################
 ############################################################################
-#Figure 2
+#Figure 3
 ma.pA<-modAvg(results, param = "pA",index=1)
 ma.prBa<-modAvg(results, param = "rBa",index=1)
 
@@ -496,7 +416,7 @@ detection<-ggplot()+
                           breaks=c("Eastern sand darter", "Silver shiner"),
                           labels=c("Eastern sand darter", "Silver shiner"))+
   theme_me+
-  theme(legend.position=c(.8,.93),
+  theme(legend.position=c(.5,.9),
         legend.text = element_text(size=12),
         legend.background=element_blank())
 
